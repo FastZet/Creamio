@@ -6,7 +6,7 @@ STASHDB_API_ENDPOINT = "https://stashdb.org/graphql"
 
 async def get_scenes(session: aiohttp.ClientSession, api_key: str, skip: int = 0):
     """
-    Fetches the 100 most recent scenes from StashDB using the correct query.
+    Fetches the 100 most recent scenes from StashDB using the correct, documented query schema.
     """
     query = """
     query QueryScenes($input: SceneQueryInput!) {
@@ -26,9 +26,9 @@ async def get_scenes(session: aiohttp.ClientSession, api_key: str, skip: int = 0
     
     page = (skip // 100) + 1
     
-    # FINAL CORRECTION: Changed sort field from "date" to "created_at".
+    # FINAL CORRECTION: Using the correct Enum value 'DATE' for sorting.
     variables = {
-        "input": { "sort": "created_at", "direction": "DESC", "page": page, "per_page": 100 }
+        "input": { "sort": "DATE", "direction": "DESC", "page": page, "per_page": 100 }
     }
     
     headers = { "Content-Type": "application/json", "ApiKey": api_key }
@@ -39,7 +39,7 @@ async def get_scenes(session: aiohttp.ClientSession, api_key: str, skip: int = 0
             if response.status == 200:
                 data = await response.json()
                 
-                if "errors" in data:
+                if "errors" in data and data["errors"]:
                     print(f"StashDB API returned an error: {json.dumps(data['errors'])}")
                     return []
 
