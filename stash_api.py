@@ -6,7 +6,7 @@ STASHDB_API_ENDPOINT = "https://stashdb.org/graphql"
 
 async def get_scenes(session: aiohttp.ClientSession, api_key: str, skip: int = 0):
     """
-    Fetches the 100 most recent scenes from StashDB with robust error handling for the GraphQL response.
+    Fetches the 100 most recent scenes from StashDB using the correct query.
     """
     query = """
     query QueryScenes($input: SceneQueryInput!) {
@@ -25,9 +25,12 @@ async def get_scenes(session: aiohttp.ClientSession, api_key: str, skip: int = 0
     """
     
     page = (skip // 100) + 1
+    
+    # FINAL CORRECTION: Changed sort field from "date" to "created_at".
     variables = {
-        "input": { "sort": "date", "direction": "DESC", "page": page, "per_page": 100 }
+        "input": { "sort": "created_at", "direction": "DESC", "page": page, "per_page": 100 }
     }
+    
     headers = { "Content-Type": "application/json", "ApiKey": api_key }
     payload = { "query": query, "variables": variables }
 
@@ -36,15 +39,10 @@ async def get_scenes(session: aiohttp.ClientSession, api_key: str, skip: int = 0
             if response.status == 200:
                 data = await response.json()
                 
-                # --- FINAL, CRUCIAL ERROR CHECK ---
-                # First, check if the API returned an error message in the body.
                 if "errors" in data:
-                    # This will log the actual reason, e.g., "Invalid API Key".
                     print(f"StashDB API returned an error: {json.dumps(data['errors'])}")
                     return []
-                # --- END OF FINAL CHECK ---
 
-                # If there are no errors, we can now safely parse the data.
                 data_content = data.get("data")
                 if not data_content or not isinstance(data_content, dict):
                     print("StashDB API Error: 'data' key is missing or not an object.")
