@@ -5,12 +5,13 @@ from fastapi.middleware.cors import CORSMiddleware
 import json
 import base64
 import aiohttp
+from urllib.parse import unquote
 
-from stash_api import get_scenes, get_scene_meta, search_scenes # Import our new search function
+from stash_api import get_scenes, get_scene_meta, search_scenes
 
 addon_manifest = {
     "id": "org.stremio.stashdb",
-    "version": "1.0.7", # Version bump
+    "version": "1.0.8", # Version bump
     "name": "StashDB Catalog",
     "description": "Provides an adult content catalog from StashDB.org for Stremio.",
     "resources": ["catalog", "meta"],
@@ -20,7 +21,6 @@ addon_manifest = {
             "type": "movie",
             "id": "stashdb_scenes",
             "name": "StashDB Scenes",
-            # This 'extra' property tells Stremio to show a search bar for this catalog
             "extra": [ { "name": "search", "isRequired": False } ]
         },
         {
@@ -68,27 +68,35 @@ async def get_configured_manifest(b64_config: str):
     decode_config(b64_config)
     return Response(content=json.dumps(addon_manifest), media_type="application/json")
 
-# MODIFIED: This endpoint now accepts an optional 'search' parameter
-@app.get("/{b64_config}/catalog/{catalog_type}/{catalog_id}.json")
-async def get_catalog(b64_config: str, catalog_type: str, catalog_id: str, search: str = None):
+# CORRECTED ENDPOINT DECORATOR: The ':path' tells FastAPI to capture everything, including slashes.
+@app.get("/{b64_config}/catalog/{catalog_type}/{catalog_id_and_search:path}.json")
+async def get_catalog(b64_config: str, catalog_type: str, catalog_id_and_search: str):
     config = decode_config(b64_config)
     api_key = config.get("stash_api_key")
     if not api_key:
         raise HTTPException(status_code=403, detail="API key is missing")
 
+    # CORRECTED LOGIC: Parse the combined ID and search string.
+    search_query = None
+    catalog_id = catalog_id_and_search
+    if "search=" in catalog_id_and_search:
+        parts = catalog_id_and_search.split("/search=")
+        catalog_id = parts[0]
+        # Decode the URL-encoded search query (e.g., "mia%20melano" -> "mia melano")
+        search_query = unquote(parts[1]) if len(parts) > 1 else None
+
     metas = []
     async with aiohttp.ClientSession() as session:
-        if search:
-            # If there's a search query, use the new search function
+        if search_query:
             if catalog_id == "stashdb_scenes":
-                metas = await search_scenes(session, api_key, search)
-            # Add logic for performer search later
+                metas = await search_scenes(session, api_key, search_query)
+            # We can add performer search logic here later
         else:
-            # Otherwise, get the regular catalog
             if catalog_id == "stashdb_scenes":
                 metas = await get_scenes(session, api_key)
     
     return {"metas": metas}
+
 
 @app.get("/{b64_config}/meta/{meta_type}/{meta_id}.json")
 async def get_meta(b64_config: str, meta_type: str, meta_id: str):
