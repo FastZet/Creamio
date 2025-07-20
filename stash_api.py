@@ -4,12 +4,11 @@ import json
 STASHDB_API_ENDPOINT = "https://stashdb.org/graphql"
 
 async def get_scenes(session: aiohttp.ClientSession, api_key: str, skip: int = 0):
-    # This function remains correct and unchanged.
+    # This function is correct and remains unchanged.
     query = """
     query QueryScenes($input: SceneQueryInput!) {
       queryScenes(input: $input) {
-        count
-        scenes { id, title, date, images { url } }
+        count, scenes { id, title, date, images { url } }
       }
     }
     """
@@ -27,8 +26,7 @@ async def get_scenes(session: aiohttp.ClientSession, api_key: str, skip: int = 0
                 stremio_metas = []
                 for scene in scenes:
                     if not scene: continue
-                    poster = None
-                    images = scene.get('images')
+                    poster = None; images = scene.get('images')
                     if images and len(images) > 0 and images[0]: poster = images[0].get('url')
                     if not poster: poster = "https://raw.githubusercontent.com/stashapp/stash/develop/ui/v2.0/src/assets/images/logo-grey.png"
                     meta = { "id": f"stashdb:scene:{scene['id']}", "type": "movie", "name": scene.get('title') or 'No Title', "poster": poster }
@@ -42,21 +40,17 @@ async def get_scenes(session: aiohttp.ClientSession, api_key: str, skip: int = 0
         return []
 
 async def search_scenes(session: aiohttp.ClientSession, api_key: str, search_query: str):
-    """
-    Searches for scenes on StashDB based on a query string.
-    """
     query = """
     query QueryScenes($input: SceneQueryInput!) {
       queryScenes(input: $input) {
-        count
-        scenes { id, title, date, images { url } }
+        count, scenes { id, title, date, images { url } }
       }
     }
     """
-    # FINAL CORRECTION: The 'q' field must be inside a 'filter' object.
+    # FINAL & CORRECTED VARIABLES: The field is 'scene_filter', not 'filter'.
     variables = {
         "input": {
-            "filter": { "q": search_query },
+            "scene_filter": { "q": search_query },
             "per_page": 100
         }
     }
@@ -71,12 +65,10 @@ async def search_scenes(session: aiohttp.ClientSession, api_key: str, search_que
                     return []
                 scenes = data.get("data", {}).get("queryScenes", {}).get("scenes", [])
                 if scenes is None: return []
-                
                 stremio_metas = []
                 for scene in scenes:
                     if not scene: continue
-                    poster = None
-                    images = scene.get('images')
+                    poster = None; images = scene.get('images')
                     if images and len(images) > 0 and images[0]: poster = images[0].get('url')
                     if not poster: poster = "https://raw.githubusercontent.com/stashapp/stash/develop/ui/v2.0/src/assets/images/logo-grey.png"
                     meta = { "id": f"stashdb:scene:{scene['id']}", "type": "movie", "name": scene.get('title') or 'No Title', "poster": poster }
@@ -90,7 +82,7 @@ async def search_scenes(session: aiohttp.ClientSession, api_key: str, search_que
         return []
 
 async def get_scene_meta(session: aiohttp.ClientSession, api_key: str, scene_id: str):
-    # This function remains correct and unchanged.
+    # This function is correct and remains unchanged.
     query = """
     query FindScene($id: ID!) {
       findScene(id: $id) {
@@ -110,8 +102,7 @@ async def get_scene_meta(session: aiohttp.ClientSession, api_key: str, scene_id:
                 if "errors" in data and data["errors"]: return None
                 scene = data.get("data", {}).get("findScene")
                 if not scene: return None
-                poster = None
-                images = scene.get('images')
+                poster = None; images = scene.get('images')
                 if images and len(images) > 0 and images[0]: poster = images[0].get('url')
                 if not poster: poster = "https://raw.githubusercontent.com/stashapp/stash/develop/ui/v2.0/src/assets/images/logo-grey.png"
                 director = scene.get('studio', {}).get('name')
