@@ -11,7 +11,7 @@ from stash_api import get_scenes, get_scene_meta, search_scenes
 
 addon_manifest = {
     "id": "org.stremio.stashdb",
-    "version": "1.0.8", # Version bump
+    "version": "1.0.9", # Version bump
     "name": "StashDB Catalog",
     "description": "Provides an adult content catalog from StashDB.org for Stremio.",
     "resources": ["catalog", "meta"],
