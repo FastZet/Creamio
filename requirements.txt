@@ -1,5 +1,5 @@
 fastapi
 uvicorn
-grequests
 python-graphql-client
 Jinja2
+aiohttp
