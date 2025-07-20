@@ -6,7 +6,7 @@ STASHDB_API_ENDPOINT = "https://stashdb.org/graphql"
 
 async def get_scenes(session: aiohttp.ClientSession, api_key: str, skip: int = 0):
     """
-    Fetches the 100 most recent scenes from StashDB with robust error handling.
+    Fetches the 100 most recent scenes from StashDB with robust error handling for the GraphQL response.
     """
     query = """
     query QueryScenes($input: SceneQueryInput!) {
@@ -36,11 +36,15 @@ async def get_scenes(session: aiohttp.ClientSession, api_key: str, skip: int = 0
             if response.status == 200:
                 data = await response.json()
                 
-                # --- START OF ROBUST PARSING ---
-                if not data or not isinstance(data, dict):
-                    print("StashDB API Error: Response body is not a valid JSON object.")
+                # --- FINAL, CRUCIAL ERROR CHECK ---
+                # First, check if the API returned an error message in the body.
+                if "errors" in data:
+                    # This will log the actual reason, e.g., "Invalid API Key".
+                    print(f"StashDB API returned an error: {json.dumps(data['errors'])}")
                     return []
+                # --- END OF FINAL CHECK ---
 
+                # If there are no errors, we can now safely parse the data.
                 data_content = data.get("data")
                 if not data_content or not isinstance(data_content, dict):
                     print("StashDB API Error: 'data' key is missing or not an object.")
@@ -52,10 +56,9 @@ async def get_scenes(session: aiohttp.ClientSession, api_key: str, skip: int = 0
                     return []
 
                 scenes = query_scenes_data.get("scenes")
-                if scenes is None: # We allow an empty list [], but not None
+                if scenes is None:
                     print("StashDB API Error: 'scenes' key is missing or null.")
                     return []
-                # --- END OF ROBUST PARSING ---
                 
                 stremio_metas = []
                 for scene in scenes:
@@ -64,7 +67,6 @@ async def get_scenes(session: aiohttp.ClientSession, api_key: str, skip: int = 0
 
                     poster = None
                     images = scene.get('images')
-                    
                     if images and len(images) > 0 and images[0]:
                         poster = images[0].get('url')
                     
@@ -86,5 +88,5 @@ async def get_scenes(session: aiohttp.ClientSession, api_key: str, skip: int = 0
                 return []
             
     except Exception as e:
-        print(f"An error occurred while fetching from StashDB: {e}")
+        print(f"An error occurred during the request to StashDB: {e}")
         return []
