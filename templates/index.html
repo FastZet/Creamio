@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StashDB Stremio Addon Configuration</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/water.css@2/out/dark.css">
+    <style>
+        body { max-width: 600px; margin: auto; padding: 1rem; }
+        .install-button {
+            display: block;
+            width: 100%;
+            padding: 1rem;
+            text-align: center;
+            background-color: #4a00e0;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            font-size: 1.2rem;
+            margin-top: 1rem;
+        }
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+    <h1>StashDB Addon Configuration</h1>
+    <p>Please enter your StashDB API Key to configure the addon. Your key is not stored on the server.</p>
+
+    <label for="apiKey">StashDB API Key</label>
+    <input type="password" id="apiKey" placeholder="Enter your StashDB API Key" required>
+    
+    <a href="#" id="installLink" class="install-button hidden">Install Addon</a>
+    <p id="message"></p>
+
+    <script>
+        const apiKeyInput = document.getElementById('apiKey');
+        const installLink = document.getElementById('installLink');
+        const message = document.getElementById('message');
+
+        function generateInstallLink() {
+            const apiKey = apiKeyInput.value.trim();
+            if (!apiKey) {
+                installLink.classList.add('hidden');
+                message.textContent = 'Please enter an API Key.';
+                return;
+            }
+
+            // Create a configuration object
+            const config = {
+                stash_api_key: apiKey
+            };
+
+            // Convert the object to a JSON string, then to Base64
+            const configString = JSON.stringify(config);
+            const b64Config = btoa(configString);
+
+            // The base URL of our addon (this script automatically gets it)
+            const baseUrl = `${window.location.protocol}//${window.location.host}`;
+            
+            // The final installation URL for Stremio
+            const finalUrl = `${baseUrl}/${b64Config}/manifest.json`;
+
+            // The Stremio protocol link
+            installLink.href = `stremio://${finalUrl}`;
+            installLink.classList.remove('hidden');
+            message.textContent = '';
+        }
+
+        // Generate the link whenever the user types in the input box
+        apiKeyInput.addEventListener('input', generateInstallLink);
+    </script>
+</body>
+</html>
