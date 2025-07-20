@@ -1,29 +1,22 @@
-from fastapi import FastAPI, Response
-from fastapi.responses import RedirectResponse
+from fastapi import FastAPI, Response, Request
+from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.templating import Jinja2Templates
 import json
+import base64
 
 # Define the basic information for our addon
 addon_manifest = {
     "id": "org.stremio.stashdb",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "name": "StashDB Catalog",
     "description": "Provides an adult content catalog from StashDB.org for Stremio.",
-    
-    # We declare what this addon provides
-    "resources": [
-        "catalog",
-        "meta"
-    ],
-    
-    # The types of content this addon supports
+    "resources": ["catalog", "meta"],
     "types": ["movie", "series"], 
-    
-    # Information about the catalogs
     "catalogs": [
         {
             "type": "movie",
-            "id": "stashdb_movies",
-            "name": "StashDB Movies"
+            "id": "stashdb_scenes",
+            "name": "StashDB Scenes"
         },
         {
             "type": "series",
@@ -31,27 +24,30 @@ addon_manifest = {
             "name": "StashDB Performers"
         }
     ],
-    
-    # A URL for the addon's logo
     "logo": "https://raw.githubusercontent.com/stashapp/stash/develop/ui/v2.0/src/assets/images/favicon-32x32.png",
-    
-    # A background image for the addon in Stremio
-    "background": "https://raw.githubusercontent.com/stashapp/stash/develop/ui/v2.0/src/assets/images/stash-logo-horizontal-dark.png"
+    "background": "https://raw.githubusercontent.com/stashapp/stash/develop/ui/v2.0/src/assets/images/stash-logo-horizontal-dark.png",
+    # Add a new property to tell Stremio where the configuration page is
+    "behaviorHints": {
+        "configurable": True,
+        "configurationRequired": True
+    }
 }
 
-# Initialize the FastAPI app
+# Initialize FastAPI and the templating engine
 app = FastAPI(
     title=addon_manifest["name"],
     version=addon_manifest["version"],
-    description=addon_manifest["description"]
 )
+templates = Jinja2Templates(directory="templates")
 
-# Root endpoint that redirects to the manifest
-@app.get("/")
-def root():
-    return RedirectResponse(url="/manifest.json")
+# This endpoint serves our HTML configuration page
+@app.get("/", response_class=HTMLResponse)
+@app.get("/configure", response_class=HTMLResponse)
+def configure(request: Request):
+    return templates.TemplateResponse("index.html", {"request": request})
 
-# Manifest endpoint
-@app.get("/manifest.json")
-def get_manifest():
+# This is our new manifest endpoint that includes the user's config
+@app.get("/{b64_config}/manifest.json")
+def get_configured_manifest(b64_config: str):
+    # Here you could decode and validate the config, but for now, we'll just serve the manifest
     return Response(content=json.dumps(addon_manifest), media_type="application/json")
