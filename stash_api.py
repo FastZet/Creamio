@@ -8,7 +8,7 @@ async def get_scenes(session: aiohttp.ClientSession, api_key: str, skip: int = 0
     """
     Fetches the 100 most recent scenes from StashDB using the correct query.
     """
-    # CORRECTED QUERY: Using 'queryScenes' and an 'input' argument of type 'SceneQueryInput'.
+    # CORRECTED QUERY: The 'screenshot' field is directly on the Scene object, not under 'paths'.
     query = """
     query QueryScenes($input: SceneQueryInput!) {
       queryScenes(input: $input) {
@@ -17,9 +17,7 @@ async def get_scenes(session: aiohttp.ClientSession, api_key: str, skip: int = 0
           id
           title
           date
-          paths {
-            screenshot
-          }
+          screenshot
         }
       }
     }
@@ -27,7 +25,6 @@ async def get_scenes(session: aiohttp.ClientSession, api_key: str, skip: int = 0
     
     page = (skip // 100) + 1
     
-    # CORRECTED VARIABLES: The filter object is now passed inside an 'input' key.
     variables = {
         "input": {
             "sort": "date",
@@ -50,12 +47,12 @@ async def get_scenes(session: aiohttp.ClientSession, api_key: str, skip: int = 0
         async with session.post(STASHDB_API_ENDPOINT, headers=headers, json=payload) as response:
             if response.status == 200:
                 data = await response.json()
-                # CORRECTED PATH: The scenes are now under 'queryScenes'.
                 scenes = data.get("data", {}).get("queryScenes", {}).get("scenes", [])
                 
                 stremio_metas = []
                 for scene in scenes:
-                    poster = scene.get('paths', {}).get('screenshot')
+                    # CORRECTED POSTER EXTRACTION: Get 'screenshot' directly from the scene object.
+                    poster = scene.get('screenshot')
                     if not poster:
                         poster = "https://raw.githubusercontent.com/stashapp/stash/develop/ui/v2.0/src/assets/images/logo-grey.png"
 
