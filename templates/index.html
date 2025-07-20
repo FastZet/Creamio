@@ -27,7 +27,8 @@
     <p>Please enter your StashDB API Key to configure the addon. Your key is not stored on the server.</p>
 
     <label for="apiKey">StashDB API Key</label>
-    <input type="password" id="apiKey" placeholder="Enter your StashDB API Key" required>
+    <!-- We now use Jinja2 to pre-fill the value if api_key is provided -->
+    <input type="password" id="apiKey" placeholder="Enter your StashDB API Key" value="{{ api_key or '' }}" required>
     
     <a href="#" id="installLink" class="install-button hidden">Install Addon</a>
     <p id="message"></p>
@@ -44,29 +45,19 @@
                 message.textContent = 'Please enter an API Key.';
                 return;
             }
-
-            // Create a configuration object
-            const config = {
-                stash_api_key: apiKey
-            };
-
-            // Convert the object to a JSON string, then to Base64
-            const configString = JSON.stringify(config);
-            const b64Config = btoa(configString);
-
-            // The base URL of our addon (this script automatically gets it)
+            const config = { stash_api_key: apiKey };
+            const b64Config = btoa(JSON.stringify(config));
             const baseUrl = `${window.location.protocol}//${window.location.host}`;
-            
-            // The final installation URL for Stremio
             const finalUrl = `${baseUrl}/${b64Config}/manifest.json`;
 
-            // The Stremio protocol link
             installLink.href = `stremio://${finalUrl}`;
             installLink.classList.remove('hidden');
             message.textContent = '';
         }
 
-        // Generate the link whenever the user types in the input box
+        // Run the function when the page loads to handle pre-filled values
+        document.addEventListener('DOMContentLoaded', generateInstallLink);
+        // Also keep the event listener for real-time updates
         apiKeyInput.addEventListener('input', generateInstallLink);
     </script>
 </body>
