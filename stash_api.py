@@ -4,7 +4,6 @@ import json
 STASHDB_API_ENDPOINT = "https://stashdb.org/graphql"
 
 async def get_scenes(session: aiohttp.ClientSession, api_key: str, skip: int = 0):
-    # This function is correct and remains unchanged.
     query = """
     query QueryScenes($input: SceneQueryInput!) {
       queryScenes(input: $input) {
@@ -32,22 +31,21 @@ async def get_scenes(session: aiohttp.ClientSession, api_key: str, skip: int = 0
                     meta = { "id": f"stashdb:scene:{scene['id']}", "type": "movie", "name": scene.get('title') or 'No Title', "poster": poster }
                     stremio_metas.append(meta)
                 return stremio_metas
-            else:
-                return []
+            else: return []
     except Exception as e:
-        print(f"An error occurred while fetching scenes: {e}")
-        return []
+        print(f"An error occurred while fetching scenes: {e}"); return []
 
 async def search_scenes(session: aiohttp.ClientSession, api_key: str, search_query: str):
+    # CORRECTED QUERY: The argument is 'scene_filter' of type 'SceneFilterInput'
     query = """
-    query QueryScenes($input: SceneQueryInput!) {
-      queryScenes(input: $input) {
+    query QueryScenes($scene_filter: SceneFilterInput!) {
+      queryScenes(scene_filter: $scene_filter, filter: {per_page: 100}) {
         count, scenes { id, title, date, images { url } }
       }
     }
     """
-    # CORRECTED VARIABLES: 'q' is a direct child of 'input'.
-    variables = { "input": { "q": search_query, "per_page": 100 } }
+    # CORRECTED VARIABLES: The variables object matches the query arguments.
+    variables = { "scene_filter": { "q": search_query } }
     headers = { "Content-Type": "application/json", "ApiKey": api_key }
     payload = { "query": query, "variables": variables }
     try:
@@ -55,7 +53,7 @@ async def search_scenes(session: aiohttp.ClientSession, api_key: str, search_que
             if response.status == 200:
                 data = await response.json()
                 if "errors" in data and data["errors"]:
-                    print(f"StashDB Search API returned an error: {json.dumps(data['errors'])}")
+                    print(f"StashDB Scene Search API returned an error: {json.dumps(data['errors'])}")
                     return []
                 scenes = data.get("data", {}).get("queryScenes", {}).get("scenes", [])
                 if scenes is None: return []
@@ -68,23 +66,21 @@ async def search_scenes(session: aiohttp.ClientSession, api_key: str, search_que
                     meta = { "id": f"stashdb:scene:{scene['id']}", "type": "movie", "name": scene.get('title') or 'No Title', "poster": poster }
                     stremio_metas.append(meta)
                 return stremio_metas
-            else:
-                return []
+            else: return []
     except Exception as e:
-        print(f"An error occurred while searching scenes: {e}")
-        return []
+        print(f"An error occurred while searching scenes: {e}"); return []
 
 async def search_performers(session: aiohttp.ClientSession, api_key: str, search_query: str):
+    # CORRECTED QUERY: The argument is 'performer_filter' of type 'PerformerFilterInput'
     query = """
-    query QueryPerformers($input: PerformerQueryInput!) {
-      queryPerformers(input: $input) {
-        count
-        performers { id, name, images { url } }
+    query QueryPerformers($performer_filter: PerformerFilterInput!) {
+      queryPerformers(performer_filter: $performer_filter, filter: {per_page: 100}) {
+        count, performers { id, name, images { url } }
       }
     }
     """
-    # CORRECTED VARIABLES: 'q' is a direct child of 'input'.
-    variables = { "input": { "q": search_query, "per_page": 100 } }
+    # CORRECTED VARIABLES: The variables object matches the query arguments.
+    variables = { "performer_filter": { "q": search_query } }
     headers = { "Content-Type": "application/json", "ApiKey": api_key }
     payload = { "query": query, "variables": variables }
     try:
@@ -105,11 +101,9 @@ async def search_performers(session: aiohttp.ClientSession, api_key: str, search
                     meta = { "id": f"stashdb:performer:{performer['id']}", "type": "series", "name": performer.get('name') or 'No Name', "poster": poster }
                     stremio_metas.append(meta)
                 return stremio_metas
-            else:
-                return []
+            else: return []
     except Exception as e:
-        print(f"An error occurred while searching performers: {e}")
-        return []
+        print(f"An error occurred while searching performers: {e}"); return []
 
 async def get_scene_meta(session: aiohttp.ClientSession, api_key: str, scene_id: str):
     # This function is correct and remains unchanged.
@@ -138,8 +132,6 @@ async def get_scene_meta(session: aiohttp.ClientSession, api_key: str, scene_id:
                 cast = [perf['performer']['name'] for perf in scene.get('performers', []) if perf and perf.get('performer') and perf['performer'].get('name')]
                 meta = { "id": f"stashdb:scene:{scene['id']}", "type": "movie", "name": scene.get('title') or 'No Title', "poster": poster, "background": poster, "description": scene.get('details'), "releaseInfo": scene.get('date', '')[:4] if scene.get('date') else '', "director": [director] if director else [], "cast": cast, "genres": genres, }
                 return {"meta": meta}
-            else:
-                return None
+            else: return None
     except Exception as e:
-        print(f"An error occurred while fetching metadata for scene {scene_id}: {e}")
-        return None
+        print(f"An error occurred while fetching metadata for scene {scene_id}: {e}"); return None
