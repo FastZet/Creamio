@@ -1,11 +1,12 @@
 from fastapi import FastAPI, Response, Request, HTTPException
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
+from fastapi.middleware.cors import CORSMiddleware # Import the CORS middleware
 import json
 import base64
 import aiohttp
 
-from stash_api import get_scenes, get_scene_meta # Import our new function
+from stash_api import get_scenes, get_scene_meta
 
 # --- (addon_manifest remains the same) ---
 addon_manifest = {
@@ -24,8 +25,22 @@ addon_manifest = {
     "behaviorHints": { "configurable": True, "configurationRequired": True }
 }
 
-app = FastAPI( title=addon_manifest["name"], version=addon_manifest["version"],)
+app = FastAPI(
+    title=addon_manifest["name"],
+    version=addon_manifest["version"],
+)
 templates = Jinja2Templates(directory="templates")
+
+# --- ADDING THE CORS MIDDLEWARE ---
+# This allows Stremio and other web pages to access our addon.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allows all origins
+    allow_credentials=True,
+    allow_methods=["*"],  # Allows all methods
+    allow_headers=["*"],  # Allows all headers
+)
+# --- END OF MIDDLEWARE ---
 
 def decode_config(b64_config: str) -> dict:
     try:
@@ -58,8 +73,6 @@ async def get_catalog(b64_config: str, catalog_type: str, catalog_id: str):
             metas = await get_scenes(session, api_key)
     return {"metas": metas}
 
-# --- NEW ENDPOINT STARTS HERE ---
-
 @app.get("/{b64_config}/meta/{meta_type}/{meta_id}.json")
 async def get_meta(b64_config: str, meta_type: str, meta_id: str):
     config = decode_config(b64_config)
@@ -67,7 +80,6 @@ async def get_meta(b64_config: str, meta_type: str, meta_id: str):
     if not api_key:
         raise HTTPException(status_code=403, detail="API key is missing")
 
-    # Stremio will give us an ID like "stashdb:scene:xxxx". We need to extract the "xxxx" part.
     id_parts = meta_id.split(':')
     if id_parts[0] != "stashdb" or len(id_parts) < 3:
         raise HTTPException(status_code=400, detail="Invalid StashDB ID format")
