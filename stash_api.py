@@ -4,19 +4,12 @@ import json
 STASHDB_API_ENDPOINT = "https://stashdb.org/graphql"
 
 async def get_scenes(session: aiohttp.ClientSession, api_key: str, skip: int = 0):
-    # This function remains the same as before
+    # This function remains correct and unchanged.
     query = """
     query QueryScenes($input: SceneQueryInput!) {
       queryScenes(input: $input) {
         count
-        scenes {
-          id
-          title
-          date
-          images {
-            url
-          }
-        }
+        scenes { id, title, date, images { url } }
       }
     }
     """
@@ -48,7 +41,6 @@ async def get_scenes(session: aiohttp.ClientSession, api_key: str, skip: int = 0
         print(f"An error occurred while fetching scenes: {e}")
         return []
 
-# --- NEW FUNCTION FOR SEARCHING ---
 async def search_scenes(session: aiohttp.ClientSession, api_key: str, search_query: str):
     """
     Searches for scenes on StashDB based on a query string.
@@ -57,19 +49,17 @@ async def search_scenes(session: aiohttp.ClientSession, api_key: str, search_que
     query QueryScenes($input: SceneQueryInput!) {
       queryScenes(input: $input) {
         count
-        scenes {
-          id
-          title
-          date
-          images {
-            url
-          }
-        }
+        scenes { id, title, date, images { url } }
       }
     }
     """
-    # The 'q' property in the filter is used for free-text search
-    variables = { "input": { "q": search_query, "per_page": 100 } }
+    # FINAL CORRECTION: The 'q' field must be inside a 'filter' object.
+    variables = {
+        "input": {
+            "filter": { "q": search_query },
+            "per_page": 100
+        }
+    }
     headers = { "Content-Type": "application/json", "ApiKey": api_key }
     payload = { "query": query, "variables": variables }
     try:
@@ -100,7 +90,7 @@ async def search_scenes(session: aiohttp.ClientSession, api_key: str, search_que
         return []
 
 async def get_scene_meta(session: aiohttp.ClientSession, api_key: str, scene_id: str):
-    # This function also remains the same
+    # This function remains correct and unchanged.
     query = """
     query FindScene($id: ID!) {
       findScene(id: $id) {
