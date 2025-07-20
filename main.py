@@ -10,7 +10,7 @@ from stash_api import get_scenes, get_scene_meta
 
 addon_manifest = {
     "id": "org.stremio.stashdb",
-    "version": "1.0.4", # Version bump
+    "version": "1.0.5", # Version bump for the fix
     "name": "StashDB Catalog",
     "description": "Provides an adult content catalog from StashDB.org for Stremio.",
     "resources": ["catalog", "meta"],
@@ -21,7 +21,10 @@ addon_manifest = {
     ],
     "logo": "https://raw.githubusercontent.com/stashapp/stash/develop/ui/v2.0/src/assets/images/favicon-32x32.png",
     "background": "https://raw.githubusercontent.com/stashapp/stash/develop/ui/v2.0/src/assets/images/stash-logo-horizontal-dark.png",
-    "behaviorHints": { "configurable": True, "configurationRequired": True }
+    "behaviorHints": { 
+        "configurable": True,
+        "configurationRequired": False # This is the crucial change
+    }
 }
 
 app = FastAPI(title=addon_manifest["name"], version=addon_manifest["version"])
@@ -47,15 +50,12 @@ def decode_config(b64_config: str) -> dict:
 @app.get("/", response_class=HTMLResponse)
 @app.get("/configure", response_class=HTMLResponse)
 async def configure(request: Request):
-    # For first-time configuration, there is no API key to pass
     return templates.TemplateResponse("index.html", {"request": request, "api_key": ""})
 
-# --- NEW ENDPOINT FOR RE-CONFIGURATION ---
 @app.get("/{b64_config}/configure", response_class=HTMLResponse)
 async def reconfigure(request: Request, b64_config: str):
     config = decode_config(b64_config)
     api_key = config.get("stash_api_key", "")
-    # Pass the existing API key to the template
     return templates.TemplateResponse("index.html", {"request": request, "api_key": api_key})
 
 @app.get("/{b64_config}/manifest.json")
