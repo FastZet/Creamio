@@ -75,23 +75,15 @@ async def search_scenes(session: aiohttp.ClientSession, api_key: str, search_que
         return []
 
 async def search_performers(session: aiohttp.ClientSession, api_key: str, search_query: str):
-    """
-    Searches for performers on StashDB.
-    """
     query = """
     query QueryPerformers($input: PerformerQueryInput!) {
       queryPerformers(input: $input) {
         count
-        performers {
-          id
-          name
-          images {
-            url
-          }
-        }
+        performers { id, name, images { url } }
       }
     }
     """
+    # CORRECTED VARIABLES: 'q' is a direct child of 'input'.
     variables = { "input": { "q": search_query, "per_page": 100 } }
     headers = { "Content-Type": "application/json", "ApiKey": api_key }
     payload = { "query": query, "variables": variables }
@@ -130,8 +122,7 @@ async def get_scene_meta(session: aiohttp.ClientSession, api_key: str, scene_id:
       }
     }
     """
-    variables = { "id": scene_id }
-    headers = { "Content-Type": "application/json", "ApiKey": api_key }
+    variables = { "id": scene_id }; headers = { "Content-Type": "application/json", "ApiKey": api_key }
     payload = { "query": query, "variables": variables }
     try:
         async with session.post(STASHDB_API_ENDPOINT, headers=headers, json=payload) as response:
@@ -143,8 +134,7 @@ async def get_scene_meta(session: aiohttp.ClientSession, api_key: str, scene_id:
                 poster = None; images = scene.get('images')
                 if images and len(images) > 0 and images[0]: poster = images[0].get('url')
                 if not poster: poster = "https://raw.githubusercontent.com/stashapp/stash/develop/ui/v2.0/src/assets/images/logo-grey.png"
-                director = scene.get('studio', {}).get('name')
-                genres = [tag['name'] for tag in scene.get('tags', []) if tag and 'name' in tag]
+                director = scene.get('studio', {}).get('name'); genres = [tag['name'] for tag in scene.get('tags', []) if tag and 'name' in tag]
                 cast = [perf['performer']['name'] for perf in scene.get('performers', []) if perf and perf.get('performer') and perf['performer'].get('name')]
                 meta = { "id": f"stashdb:scene:{scene['id']}", "type": "movie", "name": scene.get('title') or 'No Title', "poster": poster, "background": poster, "description": scene.get('details'), "releaseInfo": scene.get('date', '')[:4] if scene.get('date') else '', "director": [director] if director else [], "cast": cast, "genres": genres, }
                 return {"meta": meta}
