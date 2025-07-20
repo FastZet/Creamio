@@ -6,25 +6,33 @@ import json
 import base64
 import aiohttp
 
-from stash_api import get_scenes, get_scene_meta
+from stash_api import get_scenes, get_scene_meta, search_scenes # Import our new search function
 
 addon_manifest = {
     "id": "org.stremio.stashdb",
-    "version": "1.0.6", # Version bump
+    "version": "1.0.7", # Version bump
     "name": "StashDB Catalog",
     "description": "Provides an adult content catalog from StashDB.org for Stremio.",
     "resources": ["catalog", "meta"],
     "types": ["movie", "series"], 
     "catalogs": [
-        { "type": "movie", "id": "stashdb_scenes", "name": "StashDB Scenes" },
-        { "type": "series", "id": "stashdb_performers", "name": "StashDB Performers (Coming Soon)" }
+        {
+            "type": "movie",
+            "id": "stashdb_scenes",
+            "name": "StashDB Scenes",
+            # This 'extra' property tells Stremio to show a search bar for this catalog
+            "extra": [ { "name": "search", "isRequired": False } ]
+        },
+        {
+            "type": "series",
+            "id": "stashdb_performers",
+            "name": "StashDB Performers (Coming Soon)",
+            "extra": [ { "name": "search", "isRequired": False } ]
+        }
     ],
     "logo": "https://raw.githubusercontent.com/stashapp/stash/develop/ui/v2.0/src/assets/images/favicon-32x32.png",
     "background": "https://raw.githubusercontent.com/stashapp/stash/develop/ui/v2.0/src/assets/images/stash-logo-horizontal-dark.png",
-    "behaviorHints": { 
-        "configurable": True,
-        "configurationRequired": False # This is the crucial change
-    }
+    "behaviorHints": { "configurable": True, "configurationRequired": False }
 }
 
 app = FastAPI(title=addon_manifest["name"], version=addon_manifest["version"])
@@ -32,10 +40,7 @@ templates = Jinja2Templates(directory="templates")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"],
 )
 
 def decode_config(b64_config: str) -> dict:
@@ -63,38 +68,41 @@ async def get_configured_manifest(b64_config: str):
     decode_config(b64_config)
     return Response(content=json.dumps(addon_manifest), media_type="application/json")
 
+# MODIFIED: This endpoint now accepts an optional 'search' parameter
 @app.get("/{b64_config}/catalog/{catalog_type}/{catalog_id}.json")
-async def get_catalog(b64_config: str, catalog_type: str, catalog_id: str):
+async def get_catalog(b64_config: str, catalog_type: str, catalog_id: str, search: str = None):
     config = decode_config(b64_config)
     api_key = config.get("stash_api_key")
     if not api_key:
         raise HTTPException(status_code=403, detail="API key is missing")
+
     metas = []
     async with aiohttp.ClientSession() as session:
-        if catalog_id == "stashdb_scenes":
-            metas = await get_scenes(session, api_key)
+        if search:
+            # If there's a search query, use the new search function
+            if catalog_id == "stashdb_scenes":
+                metas = await search_scenes(session, api_key, search)
+            # Add logic for performer search later
+        else:
+            # Otherwise, get the regular catalog
+            if catalog_id == "stashdb_scenes":
+                metas = await get_scenes(session, api_key)
+    
     return {"metas": metas}
 
 @app.get("/{b64_config}/meta/{meta_type}/{meta_id}.json")
 async def get_meta(b64_config: str, meta_type: str, meta_id: str):
     config = decode_config(b64_config)
     api_key = config.get("stash_api_key")
-    if not api_key:
-        raise HTTPException(status_code=403, detail="API key is missing")
-
+    if not api_key: raise HTTPException(status_code=403, detail="API key is missing")
     id_parts = meta_id.split(':')
     if id_parts[0] != "stashdb" or len(id_parts) < 3:
         raise HTTPException(status_code=400, detail="Invalid StashDB ID format")
-    
-    content_type = id_parts[1]
-    content_id = id_parts[2]
-    
+    content_type, content_id = id_parts[1], id_parts[2]
     meta_data = None
     async with aiohttp.ClientSession() as session:
         if content_type == "scene":
             meta_data = await get_scene_meta(session, api_key, content_id)
-
     if not meta_data:
         raise HTTPException(status_code=404, detail=f"{content_type.capitalize()} not found")
-
     return meta_data
