@@ -6,9 +6,8 @@ STASHDB_API_ENDPOINT = "https://stashdb.org/graphql"
 
 async def get_scenes(session: aiohttp.ClientSession, api_key: str, skip: int = 0):
     """
-    Fetches the 100 most recent scenes from StashDB using the correct query.
+    Fetches the 100 most recent scenes from StashDB with robust error handling.
     """
-    # CORRECTED QUERY: The 'images' field returns a list of Image objects, each with a 'url'.
     query = """
     query QueryScenes($input: SceneQueryInput!) {
       queryScenes(input: $input) {
@@ -26,24 +25,11 @@ async def get_scenes(session: aiohttp.ClientSession, api_key: str, skip: int = 0
     """
     
     page = (skip // 100) + 1
-    
     variables = {
-        "input": {
-            "sort": "date",
-            "direction": "DESC",
-            "page": page,
-            "per_page": 100
-        }
+        "input": { "sort": "date", "direction": "DESC", "page": page, "per_page": 100 }
     }
-    
-    headers = {
-        "Content-Type": "application/json",
-        "ApiKey": api_key
-    }
-    payload = {
-        "query": query,
-        "variables": variables
-    }
+    headers = { "Content-Type": "application/json", "ApiKey": api_key }
+    payload = { "query": query, "variables": variables }
 
     try:
         async with session.post(STASHDB_API_ENDPOINT, headers=headers, json=payload) as response:
@@ -51,12 +37,20 @@ async def get_scenes(session: aiohttp.ClientSession, api_key: str, skip: int = 0
                 data = await response.json()
                 scenes = data.get("data", {}).get("queryScenes", {}).get("scenes", [])
                 
+                if not scenes: # Handle case where scenes list is empty or None
+                    return []
+
                 stremio_metas = []
                 for scene in scenes:
-                    # CORRECTED POSTER EXTRACTION: Check if 'images' list exists and is not empty.
+                    # ADDED CHECK: Ensure the scene object itself is not None before processing.
+                    if not scene:
+                        continue
+
                     poster = None
                     images = scene.get('images')
-                    if images and len(images) > 0:
+                    
+                    # ADDED CHECK: Ensure images list is not empty and its first item is not None.
+                    if images and len(images) > 0 and images[0]:
                         poster = images[0].get('url')
                     
                     if not poster:
@@ -77,5 +71,6 @@ async def get_scenes(session: aiohttp.ClientSession, api_key: str, skip: int = 0
                 return []
             
     except Exception as e:
+        # This is the block that was triggered.
         print(f"An error occurred while fetching from StashDB: {e}")
         return []
