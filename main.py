@@ -3,11 +3,12 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 import json
 import base64
+import aiohttp  # Import the new library
 
 # Import the function we created in our new file
 from stash_api import get_scenes
 
-# Define the basic information for our addon
+# --- (The addon_manifest dictionary remains the same as before) ---
 addon_manifest = {
     "id": "org.stremio.stashdb",
     "version": "1.0.2",
@@ -35,6 +36,7 @@ addon_manifest = {
     }
 }
 
+
 app = FastAPI(
     title=addon_manifest["name"],
     version=addon_manifest["version"],
@@ -43,7 +45,6 @@ templates = Jinja2Templates(directory="templates")
 
 
 def decode_config(b64_config: str) -> dict:
-    """Decodes the base64 config string and returns a dictionary."""
     try:
         decoded_bytes = base64.b64decode(b64_config)
         return json.loads(decoded_bytes.decode('utf-8'))
@@ -54,17 +55,17 @@ def decode_config(b64_config: str) -> dict:
 
 @app.get("/", response_class=HTMLResponse)
 @app.get("/configure", response_class=HTMLResponse)
-def configure(request: Request):
+async def configure(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
 
 @app.get("/{b64_config}/manifest.json")
-def get_configured_manifest(b64_config: str):
-    # This just confirms the config is valid before serving the manifest
+async def get_configured_manifest(b64_config: str):
     decode_config(b64_config)
     return Response(content=json.dumps(addon_manifest), media_type="application/json")
 
+# This endpoint is now an 'async' function
 @app.get("/{b64_config}/catalog/{catalog_type}/{catalog_id}.json")
-def get_catalog(b64_config: str, catalog_type: str, catalog_id: str):
+async def get_catalog(b64_config: str, catalog_type: str, catalog_id: str):
     config = decode_config(b64_config)
     api_key = config.get("stash_api_key")
 
@@ -72,11 +73,12 @@ def get_catalog(b64_config: str, catalog_type: str, catalog_id: str):
         raise HTTPException(status_code=403, detail="API key is missing from configuration")
 
     metas = []
-    if catalog_id == "stashdb_scenes":
-        metas = get_scenes(api_key)
-    # We will add logic for performers later
-    elif catalog_id == "stashdb_performers":
-        # Placeholder
-        pass
+    # We create an aiohttp session to make the request
+    async with aiohttp.ClientSession() as session:
+        if catalog_id == "stashdb_scenes":
+            # We now 'await' the result of our async function
+            metas = await get_scenes(session, api_key)
+        elif catalog_id == "stashdb_performers":
+            pass
 
     return {"metas": metas}
