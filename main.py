@@ -1,17 +1,16 @@
 from fastapi import FastAPI, Response, Request, HTTPException
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
-from fastapi.middleware.cors import CORSMiddleware # Import the CORS middleware
+from fastapi.middleware.cors import CORSMiddleware
 import json
 import base64
 import aiohttp
 
 from stash_api import get_scenes, get_scene_meta
 
-# --- (addon_manifest remains the same) ---
 addon_manifest = {
     "id": "org.stremio.stashdb",
-    "version": "1.0.3",
+    "version": "1.0.4", # Version bump
     "name": "StashDB Catalog",
     "description": "Provides an adult content catalog from StashDB.org for Stremio.",
     "resources": ["catalog", "meta"],
@@ -25,22 +24,16 @@ addon_manifest = {
     "behaviorHints": { "configurable": True, "configurationRequired": True }
 }
 
-app = FastAPI(
-    title=addon_manifest["name"],
-    version=addon_manifest["version"],
-)
+app = FastAPI(title=addon_manifest["name"], version=addon_manifest["version"])
 templates = Jinja2Templates(directory="templates")
 
-# --- ADDING THE CORS MIDDLEWARE ---
-# This allows Stremio and other web pages to access our addon.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allows all origins
+    allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["*"],  # Allows all methods
-    allow_headers=["*"],  # Allows all headers
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
-# --- END OF MIDDLEWARE ---
 
 def decode_config(b64_config: str) -> dict:
     try:
@@ -54,7 +47,16 @@ def decode_config(b64_config: str) -> dict:
 @app.get("/", response_class=HTMLResponse)
 @app.get("/configure", response_class=HTMLResponse)
 async def configure(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
+    # For first-time configuration, there is no API key to pass
+    return templates.TemplateResponse("index.html", {"request": request, "api_key": ""})
+
+# --- NEW ENDPOINT FOR RE-CONFIGURATION ---
+@app.get("/{b64_config}/configure", response_class=HTMLResponse)
+async def reconfigure(request: Request, b64_config: str):
+    config = decode_config(b64_config)
+    api_key = config.get("stash_api_key", "")
+    # Pass the existing API key to the template
+    return templates.TemplateResponse("index.html", {"request": request, "api_key": api_key})
 
 @app.get("/{b64_config}/manifest.json")
 async def get_configured_manifest(b64_config: str):
