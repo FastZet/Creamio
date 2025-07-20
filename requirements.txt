@@ -1,0 +1,4 @@
+fastapi
+uvicorn
+grequests
+python-graphql-client
