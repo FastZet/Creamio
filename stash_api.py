@@ -6,12 +6,12 @@ STASHDB_API_ENDPOINT = "https://stashdb.org/graphql"
 
 async def get_scenes(session: aiohttp.ClientSession, api_key: str, skip: int = 0):
     """
-    Fetches the 100 most recent scenes from StashDB using aiohttp.
+    Fetches the 100 most recent scenes from StashDB using the correct query.
     """
-    # CORRECTED QUERY: We removed the unused $scene_filter variable.
+    # CORRECTED QUERY: Using 'queryScenes' and an 'input' argument of type 'SceneQueryInput'.
     query = """
-    query FindScenes($filter: FindFilter!) {
-      findScenes(filter: $filter) {
+    query QueryScenes($input: SceneQueryInput!) {
+      queryScenes(input: $input) {
         count
         scenes {
           id
@@ -24,11 +24,17 @@ async def get_scenes(session: aiohttp.ClientSession, api_key: str, skip: int = 0
       }
     }
     """
+    
     page = (skip // 100) + 1
     
-    # CORRECTED VARIABLES: We removed the empty "scene_filter" object.
+    # CORRECTED VARIABLES: The filter object is now passed inside an 'input' key.
     variables = {
-        "filter": {"per_page": 100, "page": page, "sort": "date", "direction": "DESC"}
+        "input": {
+            "sort": "date",
+            "direction": "DESC",
+            "page": page,
+            "per_page": 100
+        }
     }
     
     headers = {
@@ -44,11 +50,11 @@ async def get_scenes(session: aiohttp.ClientSession, api_key: str, skip: int = 0
         async with session.post(STASHDB_API_ENDPOINT, headers=headers, json=payload) as response:
             if response.status == 200:
                 data = await response.json()
-                scenes = data.get("data", {}).get("findScenes", {}).get("scenes", [])
+                # CORRECTED PATH: The scenes are now under 'queryScenes'.
+                scenes = data.get("data", {}).get("queryScenes", {}).get("scenes", [])
                 
                 stremio_metas = []
                 for scene in scenes:
-                    # StashDB can return null posters, so we need a fallback
                     poster = scene.get('paths', {}).get('screenshot')
                     if not poster:
                         poster = "https://raw.githubusercontent.com/stashapp/stash/develop/ui/v2.0/src/assets/images/logo-grey.png"
@@ -63,7 +69,6 @@ async def get_scenes(session: aiohttp.ClientSession, api_key: str, skip: int = 0
                 
                 return stremio_metas
             else:
-                # We'll print the response body for better debugging
                 response_text = await response.text()
                 print(f"StashDB API Error: {response.status} - Body: {response_text}")
                 return []
