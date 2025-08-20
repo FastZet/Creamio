@@ -1,5 +1,0 @@
-fastapi
-uvicorn
-python-graphql-client
-Jinja2
-aiohttp
