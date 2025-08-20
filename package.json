@@ -1,0 +1,25 @@
+{
+  "name": "creamio-addon",
+  "version": "1.0.0",
+  "description": "Dynamic search-driven addon for adult content, creating catalogs from popular search engines.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js"
+  },
+  "dependencies": {
+    "axios": "^1.7.2",
+    "cache-manager": "^5.7.0",
+    "cacheable": "^1.8.8",
+    "cheerio": "^1.0.0-rc.12",
+    "express": "^4.19.2",
+    "keyv": "^5.3.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.4"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "license": "MIT"
+}
