@@ -1,8 +1,6 @@
 // server.js
 
-const express = require('express');
-const path = require('path');
-const { addonBuilder } = require('stremio-addon-sdk');
+const { addonBuilder, serveHTTP } = require('stremio-addon-sdk');
 const manifest = require('./manifest');
 const { handleCatalog, handleMeta, handleStream } = require('./src/stream-handler');
 
@@ -14,28 +12,21 @@ builder.defineCatalogHandler(handleCatalog);
 builder.defineMetaHandler(handleMeta);
 builder.defineStreamHandler(handleStream);
 
-// Get the addon interface, which is an Express router
-const addonInterface = builder.getInterface();
-
-// --- Express App Setup ---
-const app = express();
-
-// Serve the static landing page from the 'public' directory
-app.use(express.static(path.join(__dirname, 'public')));
-
-// Serve the manifest directly at the root
-app.get('/manifest.json', (req, res) => {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Content-Type', 'application/json');
-    res.send(manifest);
-});
-
-// Mount the Stremio addon interface
-app.use('/', addonInterface);
-
 const PORT = process.env.PORT || 7000;
 
-app.listen(PORT, () => {
-    console.log(`Creamio addon running at: http://localhost:${PORT}`);
-    console.log(`Manifest URL: http://localhost:${PORT}/manifest.json`);
-});
+// Use the SDK's serveHTTP function. This creates the server, sets up
+// all the necessary routes for the addon, and can also serve static files.
+serveHTTP(builder.getInterface(), { port: PORT, static: '/public' })
+    .then(({ app }) => {
+        // The `app` is an express instance, so we can add a root redirect
+        // to the landing page for a better user experience.
+        app.get('/', (req, res) => {
+            res.redirect('/public/index.html');
+        });
+        
+        console.log(`Creamio addon is running on port: ${PORT}`);
+        console.log(`To install, visit: http://localhost:${PORT}`);
+    })
+    .catch(err => {
+        console.error("Failed to start addon server:", err);
+    });
