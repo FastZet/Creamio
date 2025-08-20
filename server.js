@@ -30,7 +30,7 @@ app.get('/', (req, res) => {
 
 // Mount the Stremio addon middleware
 // This will automatically handle /manifest.json, /catalog, /meta, /stream routes
-app.use(addonInterface.middleware);
+app.use(addonInterface);
 
 const PORT = process.env.PORT || 7000;
 
