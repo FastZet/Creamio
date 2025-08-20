@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Install Creamio Stremio Addon</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: #121212; color: #fff; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
+        .container { text-align: center; padding: 2rem; background: #1e1e1e; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.4); }
+        h1 { font-size: 2.5rem; color: #ff7f50; margin-bottom: 0.5rem; }
+        p { font-size: 1.1rem; color: #ccc; max-width: 500px; margin-bottom: 2rem; }
+        .install-button { display: inline-block; padding: 1rem 2rem; font-size: 1.2rem; font-weight: bold; color: #fff; background: #ff7f50; border: none; border-radius: 8px; text-decoration: none; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; }
+        .install-button:hover { transform: translateY(-2px); box-shadow: 0 6px 12px rgba(255, 127, 80, 0.3); }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🍦 Creamio</h1>
+        <p>Your dynamic search addon for Stremio. Search for content and get browsable catalogs from your favorite sites.</p>
+        <a id="install-link" class="install-button">Install Addon</a>
+    </div>
+    <script>
+        const installLink = document.getElementById('install-link');
+        const manifestUrl = `${window.location.origin}/manifest.json`;
+        installLink.href = `stremio://${manifestUrl}`;
+    </script>
+</body>
+</html>
