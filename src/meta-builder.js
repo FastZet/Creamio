@@ -1,6 +1,6 @@
 // src/meta-builder.js
 
-const config = require('../config');
+const config = require('./config');
 
 /**
  * Builds the catalog of sources presented to the user after a search.
