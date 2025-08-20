@@ -12,18 +12,19 @@ function buildCatalog(scraperResults, query) {
     const metas = scraperResults
         .filter(result => result.status === 'fulfilled' && result.value && !result.value.error)
         .map(result => {
+            // The value contains the array of videos and the sourceName
             const scraper = config.scrapers.find(s => s.name === result.value.sourceName);
             if (!scraper) return null;
 
             return {
                 id: `creamio:${scraper.id}:${query}`,
-                type: 'movie', // We present the source as a "movie" in the catalog
+                type: 'movie', // We present each source as a clickable "movie"
                 name: `Results from ${scraper.name}`,
                 poster: scraper.logo,
                 description: `Search results for "${query}" from ${scraper.name}`
             };
         })
-        .filter(Boolean); // Filter out any null results
+        .filter(Boolean);
 
     return metas;
 }
@@ -44,13 +45,13 @@ function buildSeriesMeta(source, query, videos) {
         poster: source.logo,
         background: config.addon.background,
         videos: videos.map((video, index) => ({
-            id: `creamio:${video.url}`, // The stream handler will parse this ID
+            id: `creamio:${video.url}`,
             title: video.title,
             season: 1,
             episode: index + 1,
             thumbnail: video.thumbnail,
             overview: `Duration: ${video.duration}\nSource: ${video.source}`,
-            released: new Date().toISOString() // Stremio requires a release date
+            released: new Date().toISOString()
         }))
     };
     return { meta };
@@ -65,18 +66,18 @@ function buildSeriesMeta(source, query, videos) {
  */
 function buildErrorMeta(source, query, errorInfo) {
     const meta = {
-        id: `creamio:${source.id}:${query}`,
+        id: `creamio:error:${source.id}:${query}`,
         type: 'series',
         name: `Error: ${source.name}`,
         description: `Failed to fetch results for "${query}" from ${source.name}.`,
-        poster: source.logo,
+        poster: source.logo, // You can create a generic error version of the logo
         background: config.addon.background,
         videos: [{
             id: `creamio:error:${source.id}`,
             title: errorInfo.error || 'Scraping Failed',
             season: 1,
             episode: 1,
-            overview: errorInfo.reason || 'An unknown error occurred while trying to scrape this source.',
+            overview: errorInfo.reason || 'An unknown error occurred.',
             thumbnail: 'https://raw.githubusercontent.com/username/creamio-addon/main/images/error-icon.png' // Placeholder
         }]
     };
@@ -99,7 +100,6 @@ function buildStream(videoUrl) {
         }]
     };
 }
-
 
 module.exports = {
     buildCatalog,
