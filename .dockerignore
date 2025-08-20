@@ -1,0 +1,10 @@
+# Ignore dependencies, as they are installed inside the container
+node_modules
+
+# Ignore local environment files and Git repository
+.env
+.git
+.gitignore
+
+# Ignore any local development logs
+npm-debug.log
