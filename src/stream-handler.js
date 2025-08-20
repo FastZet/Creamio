@@ -2,25 +2,14 @@
 const config = require('./config');
 const scrapers = require('./scrapers');
 const { buildCatalog, buildSeriesMeta, buildErrorMeta, buildStream } = require('./meta-builder');
-const { createCache } = require("cache-manager");
-const { Keyv } = require("keyv");
-const { KeyvCacheableMemory } = require("cacheable");
 
 console.log('📦 Stream handler module loading...');
 console.log('🔧 Available scrapers:', scrapers.map(s => s.name));
 
-// Initialize a robust cache
-const ttlStore = new KeyvCacheableMemory({
-    ttl: config.cache.searchTTL,
-    checkInterval: 24 * 60 * 60 * 1000, // Check for expired items once a day
-});
+// Simple in-memory cache to avoid version conflicts
+const simpleCache = new Map();
 
-const cache = createCache({
-    stores: [new Keyv({ store: ttlStore })],
-    ttl: config.cache.searchTTL,
-});
-
-console.log('💾 Cache initialized with TTL:', config.cache.searchTTL);
+console.log('💾 Simple cache initialized');
 
 async function handleCatalog(args) {
     console.log('🎯 handleCatalog called with args:', JSON.stringify(args, null, 2));
@@ -36,36 +25,49 @@ async function handleCatalog(args) {
     const cacheKey = `catalog:${query}`;
     console.log('🔑 Cache key:', cacheKey);
 
-    return cache.wrap(cacheKey, async () => {
-        console.log(`🆕 [FRESH] Scraping all sources for catalog query: "${query}"`);
-        console.log(`🕷️ Starting scraper promises for ${scrapers.length} scrapers...`);
-        
-        const scraperPromises = scrapers.map(scraper => {
-            console.log(`🎯 Starting scraper: ${scraper.name}`);
-            return scraper.scrape(query)
-                .then(result => {
-                    console.log(`✅ Scraper ${scraper.name} completed:`, result?.error ? 'ERROR' : `${result?.length || 0} results`);
-                    return { ...result, sourceName: scraper.name };
-                })
-                .catch(error => {
-                    console.error(`❌ Scraper ${scraper.name} failed:`, error.message);
-                    return { error: error.message, sourceName: scraper.name };
-                });
-        });
+    // Check simple cache first
+    if (simpleCache.has(cacheKey)) {
+        console.log('✅ Cache hit for:', cacheKey);
+        return simpleCache.get(cacheKey);
+    }
 
-        const results = await Promise.allSettled(scraperPromises);
-        console.log('🏁 All scrapers completed. Results:', results.length);
-        
-        results.forEach((result, index) => {
-            const scraperName = scrapers[index].name;
-            console.log(`📊 ${scraperName} result:`, result.status, result.value?.error || 'OK');
-        });
-
-        const catalog = buildCatalog(results, query);
-        console.log('📚 Built catalog with', catalog?.metas?.length || 0, 'items');
-        
-        return { metas: catalog };
+    console.log(`🆕 [FRESH] Scraping all sources for catalog query: "${query}"`);
+    console.log(`🕷️ Starting scraper promises for ${scrapers.length} scrapers...`);
+    
+    const scraperPromises = scrapers.map(scraper => {
+        console.log(`🎯 Starting scraper: ${scraper.name}`);
+        return scraper.scrape(query)
+            .then(result => {
+                console.log(`✅ Scraper ${scraper.name} completed:`, result?.error ? 'ERROR' : `${result?.length || 0} results`);
+                return { ...result, sourceName: scraper.name };
+            })
+            .catch(error => {
+                console.error(`❌ Scraper ${scraper.name} failed:`, error.message);
+                return { error: error.message, sourceName: scraper.name };
+            });
     });
+
+    const results = await Promise.allSettled(scraperPromises);
+    console.log('🏁 All scrapers completed. Results:', results.length);
+    
+    results.forEach((result, index) => {
+        const scraperName = scrapers[index].name;
+        console.log(`📊 ${scraperName} result:`, result.status, result.value?.error || 'OK');
+    });
+
+    const catalog = buildCatalog(results, query);
+    console.log('📚 Built catalog with', catalog?.length || 0, 'items');
+    
+    const finalResult = { metas: catalog };
+    
+    // Store in simple cache with TTL (expire after 1 hour)
+    simpleCache.set(cacheKey, finalResult);
+    setTimeout(() => {
+        simpleCache.delete(cacheKey);
+        console.log('🗑️ Cache entry expired:', cacheKey);
+    }, 60 * 60 * 1000); // 1 hour
+    
+    return finalResult;
 }
 
 async function handleMeta(args) {
@@ -76,25 +78,39 @@ async function handleMeta(args) {
     
     const cacheKey = `meta:${sourceId}:${query}`;
 
-    return cache.wrap(cacheKey, async () => {
-        const source = scrapers.find(s => s.id === sourceId);
-        if (!source) {
-            console.error('❌ Invalid source ID:', sourceId);
-            throw new Error(`Invalid source ID: ${sourceId}`);
-        }
+    // Check simple cache first
+    if (simpleCache.has(cacheKey)) {
+        console.log('✅ Cache hit for:', cacheKey);
+        return simpleCache.get(cacheKey);
+    }
 
-        console.log(`🆕 [FRESH] Scraping "${source.name}" for meta: "${query}"`);
+    const source = scrapers.find(s => s.id === sourceId);
+    if (!source) {
+        console.error('❌ Invalid source ID:', sourceId);
+        throw new Error(`Invalid source ID: ${sourceId}`);
+    }
 
-        const videosOrError = await source.scrape(query);
+    console.log(`🆕 [FRESH] Scraping "${source.name}" for meta: "${query}"`);
 
-        if (videosOrError.error) {
-            console.log('❌ Scraper returned error:', videosOrError.error);
-            return buildErrorMeta(source, query, videosOrError);
-        } else {
-            console.log('✅ Scraper returned', videosOrError.length, 'videos');
-            return buildSeriesMeta(source, query, videosOrError);
-        }
-    });
+    const videosOrError = await source.scrape(query);
+    
+    let result;
+    if (videosOrError.error) {
+        console.log('❌ Scraper returned error:', videosOrError.error);
+        result = buildErrorMeta(source, query, videosOrError);
+    } else {
+        console.log('✅ Scraper returned', videosOrError.length, 'videos');
+        result = buildSeriesMeta(source, query, videosOrError);
+    }
+
+    // Store in simple cache
+    simpleCache.set(cacheKey, result);
+    setTimeout(() => {
+        simpleCache.delete(cacheKey);
+        console.log('🗑️ Cache entry expired:', cacheKey);
+    }, 60 * 60 * 1000); // 1 hour
+
+    return result;
 }
 
 function handleStream(args) {
@@ -102,20 +118,3 @@ function handleStream(args) {
     
     const [_, ...urlParts] = args.id.split('creamio:');
     const videoUrl = urlParts.join('creamio:'); // Rejoin in case URL contained 'creamio:'
-
-    if (!videoUrl || !videoUrl.startsWith('http')) {
-        console.log('❌ Invalid video URL:', videoUrl);
-        return Promise.resolve({ streams: [] });
-    }
-
-    console.log('✅ Providing external stream for URL:', videoUrl);
-    return Promise.resolve(buildStream(videoUrl));
-}
-
-console.log('📦 Stream handler module loaded successfully');
-
-module.exports = {
-    handleCatalog,
-    handleMeta,
-    handleStream
-};
