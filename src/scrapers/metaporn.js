@@ -1,84 +1,147 @@
 // src/scrapers/metaporn.js
-
 const axios = require('axios');
-const cheerio = require('cheerio');
 const config = require('../config');
 
-/**
- * Builds a valid search URL for Metaporn.
- * @param {string} query - The user's search query.
- * @returns {string} The formatted search URL.
- */
 function buildUrl(query) {
-    const encodedQuery = encodeURIComponent(query);
+    const encodedQuery = encodeURIComponent(query.trim());
     return config.scrapers.find(s => s.id === 'metaporn').searchUrl.replace('{{query}}', encodedQuery);
 }
 
-/**
- * Scrapes Metaporn for video results based on a query.
- * @param {string} query - The user's search query.
- * @returns {Promise<Array|{error: string, reason: string}>} A promise that resolves to an array of video objects or an error object.
- */
 async function scrapeMetaporn(query) {
     const url = buildUrl(query);
+    console.log('🔗 Metaporn URL:', url);
+    
     const { userAgent, timeout } = config.client;
-    const selectors = config.selectors;
 
     try {
         const response = await axios.get(url, {
             headers: { 'User-Agent': userAgent },
             timeout: timeout
         });
-
-        const $ = cheerio.load(response.data);
-
-        // Check for Cloudflare or other blocks
-        if ($('title').text().includes('Cloudflare')) {
-            console.error('Metaporn scraper blocked by Cloudflare.');
-            return { error: 'Scraping failed', reason: 'Blocked by Cloudflare bot protection.' };
+        
+        console.log('📄 Metaporn response status:', response.status);
+        console.log('📝 Metaporn response length:', response.data.length);
+        
+        const html = response.data;
+        
+        // Check for blocks first
+        if (html.includes('Cloudflare') || html.includes('Access denied') || html.includes('Just a moment')) {
+            console.error('❌ Metaporn blocked by protection service');
+            return { error: 'Blocked by protection service', reason: 'Detected protection service' };
         }
-
+        
         const videos = [];
-        $(selectors.resultItem).each((i, element) => {
-            const el = $(element);
-            const linkElement = el.find(selectors.link);
-
-            const title = linkElement.attr('title');
-            let videoUrl = linkElement.attr('href');
+        
+        // Manual parsing approach - look for common patterns in adult sites
+        // Pattern 1: Look for links with thumbnails (most common)
+        const linkRegex = /<a[^>]+href="([^"]+)"[^>]*>[\s\S]*?<img[^>]+src="([^"]+)"[^>]*alt="([^"]*)"[\s\S]*?<\/a>/gi;
+        let match;
+        
+        while ((match = linkRegex.exec(html)) !== null && videos.length < 20) {
+            const [, href, imgSrc, altText] = match;
             
-            // Resolve relative URLs
-            if (videoUrl && videoUrl.startsWith('/out/')) {
-                const baseUrl = config.scrapers.find(s => s.id === 'metaporn').baseUrl;
-                videoUrl = `${baseUrl}${videoUrl}`;
-            }
-
-            const thumbnail = el.find(selectors.thumbnail).attr('src');
-            const durationText = el.find(selectors.duration).text().trim();
-            
-            // Extract duration, handling cases where it might be missing or combined with other text (like quality)
-            const durationMatch = durationText.match(/\d{1,2}:\d{2}(:\d{2})?/);
-            const duration = durationMatch ? durationMatch[0] : 'N/A';
-
-            if (title && videoUrl) {
+            if (href && imgSrc && (href.includes('/video/') || href.includes('/watch/') || href.includes('.html'))) {
+                let videoUrl = href.startsWith('http') ? href : `${config.scrapers.find(s => s.id === 'metaporn').baseUrl}${href}`;
+                let title = altText || 'Unknown Video';
+                let thumbnail = imgSrc.startsWith('http') ? imgSrc : `${config.scrapers.find(s => s.id === 'metaporn').baseUrl}${imgSrc}`;
+                
+                // Try to find duration near this video (look around the match)
+                const contextStart = Math.max(0, match.index - 500);
+                const contextEnd = Math.min(html.length, match.index + match[0].length + 500);
+                const context = html.slice(contextStart, contextEnd);
+                
+                const durationMatch = context.match(/(\d{1,2}:\d{2}(?::\d{2})?)/);
+                const duration = durationMatch ? durationMatch[1] : 'N/A';
+                
                 videos.push({
-                    title,
+                    title: title.substring(0, 100).trim(),
                     url: videoUrl,
-                    thumbnail,
-                    duration,
+                    thumbnail: thumbnail,
+                    duration: duration,
                     source: 'Metaporn'
                 });
             }
-        });
-
-        if (videos.length === 0) {
-             return { error: 'No results found', reason: 'The search query returned no videos, or the website structure has changed.' };
         }
-
-        return videos;
-
+        
+        // Pattern 2: Alternative - Look for title attributes in links
+        if (videos.length === 0) {
+            const titleRegex = /<a[^>]+href="([^"]+)"[^>]+title="([^"]+)"[^>]*>[\s\S]*?<\/a>/gi;
+            
+            while ((match = titleRegex.exec(html)) !== null && videos.length < 20) {
+                const [, href, title] = match;
+                
+                if (href && title && (href.includes('/video/') || href.includes('/watch/') || href.includes('.html'))) {
+                    let videoUrl = href.startsWith('http') ? href : `${config.scrapers.find(s => s.id === 'metaporn').baseUrl}${href}`;
+                    
+                    // Try to find thumbnail and duration near this match
+                    const contextStart = Math.max(0, match.index - 300);
+                    const contextEnd = Math.min(html.length, match.index + match[0].length + 300);
+                    const context = html.slice(contextStart, contextEnd);
+                    
+                    const imgMatch = context.match(/<img[^>]+src="([^"]+)"/i);
+                    const thumbnail = imgMatch ? (imgMatch[1].startsWith('http') ? imgMatch[1] : `${config.scrapers.find(s => s.id === 'metaporn').baseUrl}${imgMatch[1]}`) : '';
+                    
+                    const durationMatch = context.match(/(\d{1,2}:\d{2}(?::\d{2})?)/);
+                    const duration = durationMatch ? durationMatch[1] : 'N/A';
+                    
+                    videos.push({
+                        title: title.substring(0, 100).trim(),
+                        url: videoUrl,
+                        thumbnail: thumbnail,
+                        duration: duration,
+                        source: 'Metaporn'
+                    });
+                }
+            }
+        }
+        
+        // Pattern 3: Last resort - Look for any video/watch links
+        if (videos.length === 0) {
+            const anyLinkRegex = /<a[^>]+href="([^"]*(?:video|watch)[^"]*)"[^>]*>([\s\S]*?)<\/a>/gi;
+            
+            while ((match = anyLinkRegex.exec(html)) !== null && videos.length < 10) {
+                const [, href, linkContent] = match;
+                
+                if (href) {
+                    let videoUrl = href.startsWith('http') ? href : `${config.scrapers.find(s => s.id === 'metaporn').baseUrl}${href}`;
+                    
+                    // Extract title from link content
+                    const titleMatch = linkContent.match(/title="([^"]+)"|alt="([^"]+)"|>([^<]+)</i);
+                    const title = (titleMatch && (titleMatch[1] || titleMatch[2] || titleMatch[13])) || 'Video';
+                    
+                    videos.push({
+                        title: title.substring(0, 100).trim(),
+                        url: videoUrl,
+                        thumbnail: '',
+                        duration: 'N/A',
+                        source: 'Metaporn'
+                    });
+                }
+            }
+        }
+        
+        if (videos.length === 0) {
+            console.log('🔍 Metaporn HTML sample (first 1000 chars):', html.substring(0, 1000));
+            return { 
+                error: 'No results found', 
+                reason: 'No video links found in HTML. The site structure may have changed or search returned no results.'
+            };
+        }
+        
+        // Remove duplicates based on URL
+        const uniqueVideos = videos.filter((video, index, self) => 
+            self.findIndex(v => v.url === video.url) === index
+        );
+        
+        console.log(`🎉 Metaporn scraped ${uniqueVideos.length} unique videos successfully`);
+        return uniqueVideos.slice(0, 15); // Limit to 15 results
+        
     } catch (error) {
-        console.error(`Error scraping Metaporn for query "${query}":`, error.message);
-        return { error: 'Scraping failed', reason: `Could not connect to Metaporn. The site may be down or has changed its layout. (Details: ${error.message})` };
+        console.error(`❌ Metaporn error for "${query}":`, error.message);
+        return { 
+            error: 'Connection failed', 
+            reason: `Could not connect to Metaporn: ${error.message}` 
+        };
     }
 }
 
