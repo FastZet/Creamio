@@ -1,42 +1,41 @@
 // server.js
 
-const { addonBuilder, serveHTTP } = require('stremio-addon-sdk');
+const express = require('express');
+const path = require('path');
+const { addonBuilder } = require('stremio-addon-sdk');
 const manifest = require('./manifest');
 const { handleCatalog, handleMeta, handleStream } = require('./src/stream-handler');
-const path = require('path');
-const express = require('express');
 
-// Create the addon builder instance
+// Initialize the addon builder with the manifest
 const builder = new addonBuilder(manifest);
 
-// Register handlers for each resource
-// The SDK automatically maps the IDs and types from the manifest
+// Define handlers for the addon's resources
 builder.defineCatalogHandler(handleCatalog);
 builder.defineMetaHandler(handleMeta);
 builder.defineStreamHandler(handleStream);
 
-// Create an express app for the landing page
+// Get the addon interface, which is an Express router
+const addonInterface = builder.getInterface();
+
+// --- Express App Setup ---
 const app = express();
+
+// Serve the static landing page from the 'public' directory
 app.use(express.static(path.join(__dirname, 'public')));
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+
+// Serve the manifest directly at the root
+app.get('/manifest.json', (req, res) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Content-Type', 'application/json');
+    res.send(manifest);
 });
 
-// Use the SDK's serveHTTP method, which returns a request handler
-// and mount it on the express app.
-const addonInterface = builder.getInterface();
-app.use((req, res, next) => {
-    // Check if the request is for the addon's API
-    if (req.url.startsWith(`/${manifest.id}`)) {
-        addonInterface.middleware(req, res, next);
-    } else {
-        next();
-    }
-});
+// Mount the Stremio addon interface
+app.use('/', addonInterface);
 
 const PORT = process.env.PORT || 7000;
 
 app.listen(PORT, () => {
     console.log(`Creamio addon running at: http://localhost:${PORT}`);
-    console.log(`Stremio manifest URL: http://localhost:${PORT}/manifest.json`);
+    console.log(`Manifest URL: http://localhost:${PORT}/manifest.json`);
 });
