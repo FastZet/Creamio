@@ -118,3 +118,20 @@ function handleStream(args) {
     
     const [_, ...urlParts] = args.id.split('creamio:');
     const videoUrl = urlParts.join('creamio:'); // Rejoin in case URL contained 'creamio:'
+
+    if (!videoUrl || !videoUrl.startsWith('http')) {
+        console.log('❌ Invalid video URL:', videoUrl);
+        return Promise.resolve({ streams: [] });
+    }
+
+    console.log('✅ Providing external stream for URL:', videoUrl);
+    return Promise.resolve(buildStream(videoUrl));
+}
+
+console.log('📦 Stream handler module loaded successfully');
+
+module.exports = {
+    handleCatalog,
+    handleMeta,
+    handleStream
+};
