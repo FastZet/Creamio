@@ -1,63 +1,42 @@
 // server.js
 
-const express = require('express');
-const path = require('path');
-const { handleCatalog, handleMeta, handleStream } = require('./src/stream-handler');
+const { addonBuilder, serveHTTP } = require('stremio-addon-sdk');
 const manifest = require('./manifest');
+const { handleCatalog, handleMeta, handleStream } = require('./src/stream-handler');
+const path = require('path');
+const express = require('express');
 
+// Create the addon builder instance
+const builder = new addonBuilder(manifest);
+
+// Register handlers for each resource
+// The SDK automatically maps the IDs and types from the manifest
+builder.defineCatalogHandler(handleCatalog);
+builder.defineMetaHandler(handleMeta);
+builder.defineStreamHandler(handleStream);
+
+// Create an express app for the landing page
 const app = express();
-const PORT = process.env.PORT || 7000;
-
-// CORS Middleware
-app.use((req, res, next) => {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Headers', '*');
-    res.setHeader('Content-Type', 'application/json');
-    next();
-});
-
-// Serve static landing page
 app.use(express.static(path.join(__dirname, 'public')));
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// Stremio Addon Routes
-app.get('/manifest.json', (req, res) => {
-    res.send(manifest);
-});
-
-app.get('/catalog/:type/:id/:extra?.json', async (req, res) => {
-    try {
-        const result = await handleCatalog(req.params);
-        res.send(result);
-    } catch (error) {
-        console.error(error);
-        res.status(500).send({ error: 'An internal error occurred.' });
+// Use the SDK's serveHTTP method, which returns a request handler
+// and mount it on the express app.
+const addonInterface = builder.getInterface();
+app.use((req, res, next) => {
+    // Check if the request is for the addon's API
+    if (req.url.startsWith(`/${manifest.id}`)) {
+        addonInterface.middleware(req, res, next);
+    } else {
+        next();
     }
 });
 
-app.get('/meta/:type/:id.json', async (req, res) => {
-    try {
-        const result = await handleMeta(req.params);
-        res.send(result);
-    } catch (error) {
-        console.error(error);
-        res.status(500).send({ error: 'An internal error occurred.' });
-    }
-});
+const PORT = process.env.PORT || 7000;
 
-app.get('/stream/:type/:id.json', async (req, res) => {
-    try {
-        const result = await handleStream(req.params);
-        res.send(result);
-    } catch (error) {
-        console.error(error);
-        res.status(500).send({ error: 'An internal error occurred.' });
-    }
-});
-
-// Start Server
 app.listen(PORT, () => {
     console.log(`Creamio addon running at: http://localhost:${PORT}`);
+    console.log(`Stremio manifest URL: http://localhost:${PORT}/manifest.json`);
 });
