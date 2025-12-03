@@ -43,7 +43,7 @@ async def configure(request: Request):
 async def manifest(config: str = None):
     return {
         "id": "com.creamio.addon",
-        "version": "1.0.1",
+        "version": "1.0.2",
         "name": "Creamio",
         "description": "Adult Content via StashDB + Debrid",
         "types": ["movie"],
@@ -72,31 +72,34 @@ async def catalog(config: str, type: str, id: str, extra: str = None):
 
     client = StashDBClient()
     scenes = []
-
-    # Parse 'extra' to find search query
-    # extra comes in as "search=Mia Malkova" (URL encoded) or similar
     search_query = ""
+
+    # Robust 'extra' parsing
     if extra:
         try:
-            # Stremio passes extra args like "search=term&other=..."
-            # FastAPI might pass it as a raw string path param if not parsed by router strictly
-            # Common format in Stremio Addon SDK: /catalog/movie/id/search=Term.json
-            if "search=" in extra:
-                search_query = extra.split("search=")[1].split("&")[0]
-                search_query = unquote(search_query)
+            # Stremio often sends extra as: "search=term"
+            # or "genre=something&search=term"
+            params = extra.split("&")
+            for param in params:
+                if param.startswith("search="):
+                    raw_query = param.split("search=")[1]
+                    search_query = unquote(raw_query)
+                    break
         except Exception as e:
             logger.error(f"[Catalog] Failed to parse extra args: {e}")
 
     if search_query:
         logger.info(f"[Catalog] Searching StashDB for: '{search_query}'")
-        # 1. Try to find Performer first
-        # 2. If result, get their scenes. If not, search scenes by query.
+        
+        # 1. Try to find Performer first (High priority for "Mia Malkova")
         performer_scenes = await client.get_performer_scenes(search_query)
+        
         if performer_scenes:
-            logger.info(f"[Catalog] Found {len(performer_scenes)} scenes for performer '{search_query}'")
+            logger.info(f"[Catalog] Found {len(performer_scenes)} scenes via Performer lookup")
             scenes = performer_scenes
         else:
-            logger.info(f"[Catalog] No performer found, searching scenes for '{search_query}'")
+            # 2. Fallback to scene title search
+            logger.info(f"[Catalog] Performer lookup empty. Searching scene titles...")
             scenes = await client.search_scenes(search_query)
     else:
         # No search query = Trending
@@ -117,6 +120,8 @@ async def catalog(config: str, type: str, id: str, extra: str = None):
         })
     return {"metas": metas}
 
+# ... Meta and Stream endpoints remain the same (they were correct) ...
+# (Include the rest of the file as previously provided)
 @router.get("/{config}/meta/{type}/{id}.json")
 async def meta(config: str, type: str, id: str):
     logger.info(f"[Meta] Request for {id}")
@@ -245,7 +250,6 @@ async def stream(request: Request, config: str, type: str, id: str):
     logger.info(f"[Stream] Total streams returned: {len(streams)}")
     return {"streams": streams}
 
-# ... Resolve routes remain the same ...
 @router.get("/resolve/rd/{token}/{infohash}/{b64_magnet}")
 async def resolve_rd(token: str, infohash: str, b64_magnet: str):
     logger.info(f"[Resolve] RD Request for hash {infohash}")
