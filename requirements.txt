@@ -1,0 +1,30 @@
+# Web Framework
+fastapi==0.115.5
+uvicorn[standard]==0.32.1
+gunicorn==23.0.0
+
+# HTTP Clients
+aiohttp==3.11.10
+httpx==0.28.1
+
+# Database
+databases[aiosqlite]==0.9.0
+aiosqlite==0.20.0
+
+# Parsing & Matching
+beautifulsoup4==4.12.3
+lxml==5.3.0
+rapidfuzz==3.10.1
+bencodepy==0.9.5
+
+# Data Handling
+orjson==3.10.12
+pydantic==2.10.3
+pydantic-settings==2.6.1
+
+# Utilities
+python-dotenv==1.0.1
+loguru==0.7.3
+
+# GraphQL Client (for StashDB)
+gql[aiohttp]==3.5.0
