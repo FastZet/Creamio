@@ -28,3 +28,6 @@ loguru==0.7.3
 
 # GraphQL Client (for StashDB)
 gql[aiohttp]==3.5.0
+
+# Templating
+jinja2==3.1.4
